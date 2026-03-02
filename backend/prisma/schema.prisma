@@ -1,0 +1,359 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = "postgresql://postgres.ulapsnjzjtmzdysmello:Profitcast%402026@aws-1-ap-south-1.pooler.supabase.com:5432/postgres"
+}
+
+
+model User {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  password    String
+  name        String
+  role        String   @default("EMPLOYEE")
+  avatar      String?
+  avatarUrl   String?
+  phone       String?
+  department  String?
+  managerId   String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Employee specific fields
+  employeeCode    String?   @unique
+  fullName        String?   // Will use name field as primary, fullName for display
+  designation     String?
+  employmentType  String?   // Full-time / Intern / Contract
+  joinDate        DateTime?
+  employmentStatus String? @default("Active") // Active / On Leave / Resigned / Terminated
+  exitDate        DateTime?
+  reportingManagerId String? // FK to employees.id (will reference User.id)
+
+  ownedProjects    Project[]         @relation("ProjectOwner")
+  projectMembers   ProjectMember[]
+  assignedTasks    Task[]            @relation("TaskAssignee")
+  createdTasks     Task[]            @relation("TaskCreator")
+  comments         Comment[]
+  timesheetEntries Timesheet[]
+  reports          Report[]
+  notifications    Notification[]
+  notificationPreferences NotificationPreferences?
+  reportedIssues   Issue[]           @relation("IssueReporter")
+  assignedIssues   Issue[]           @relation("IssueAssignee")
+  issueComments    IssueComment[]
+  calendarEvents   CalendarEvent[]
+  automationRules  AutomationRule[]  @relation("AutomationCreator")
+  
+  // Self-referencing relationships for hierarchy
+  manager          User?             @relation("UserHierarchy", fields: [managerId], references: [id])
+  directReports    User[]            @relation("UserHierarchy")
+  reportingManager User?             @relation("ReportingManager", fields: [reportingManagerId], references: [id])
+  reportees        User[]            @relation("ReportingManager")
+
+  // New HR relationships
+  attendanceLogs      AttendanceLog[]     @relation("UserAttendanceLogs")
+  attendanceSummaries AttendanceSummary[] @relation("UserAttendanceSummaries")
+  leaveBalances       LeaveBalance[]      @relation("UserLeaveBalances")
+  leaveRequests       LeaveRequest[]     @relation("EmployeeLeaveRequests")
+  approvedLeaveRequests LeaveRequest[]   @relation("ApprovedLeaveRequests")
+  employeeEscalations Escalation[]      @relation("EmployeeEscalations")
+  raisedEscalations   Escalation[]      @relation("RaisedEscalations")
+}
+
+model NotificationPreferences {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  emailEnabled  Boolean  @default(true)
+  pushEnabled   Boolean  @default(true)
+  taskReminders Boolean  @default(true)
+  projectUpdates Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Project {
+  id          String        @id @default(uuid())
+  name        String
+  description String?
+  status      String   @default("PLANNING")
+  startDate   DateTime
+  endDate     DateTime
+  budget      Float?
+  color       String        @default("#00A1C7")
+  tags        String?
+  services    String?
+  ownerId     String
+  owner       User          @relation("ProjectOwner", fields: [ownerId], references: [id])
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  members     ProjectMember[]
+  tasks       Task[]
+  milestones  Milestone[]
+  reports     Report[]
+  activities  Activity[]
+  issues      Issue[]
+}
+
+model ProjectMember {
+  id        String   @id @default(uuid())
+  projectId String
+  userId    String
+  roleInProject String @default("CONTRIBUTOR") // LEAD or CONTRIBUTOR
+  joinedAt  DateTime @default(now())
+
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+}
+
+model Milestone {
+  id          String   @id @default(uuid())
+  name        String
+  targetDate  DateTime
+  isCompleted Boolean  @default(false)
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+}
+
+model Task {
+  id          String       @id @default(uuid())
+  title       String
+  description String?
+  status      String   @default("TODO")
+  priority    String   @default("MEDIUM")
+  startDate   DateTime?
+  dueDate     DateTime?
+  estimatedHours Float?
+  order       Int?
+  projectId   String
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assigneeId  String?
+  assignee    User?        @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  creatorId   String
+  creator     User         @relation("TaskCreator", fields: [creatorId], references: [id])
+  parentId    String?
+  parent      Task?        @relation("SubTasks", fields: [parentId], references: [id])
+  subtasks    Task[]       @relation("SubTasks")
+  tags        String?
+  service     String?
+  isAutomated Boolean      @default(false)
+  delayNotified Boolean  @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  comments    Comment[]
+  timesheets  Timesheet[]
+  calendarEvents CalendarEvent[] @relation("CalendarEventTask")
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  content   String
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Timesheet {
+  id          String   @id @default(uuid())
+  date        DateTime
+  startTime   String
+  endTime     String
+  hours       Float
+  workType    String   @default("BILLABLE")
+  notes       String?
+  isApproved  Boolean?
+  taskId      String
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+}
+
+model Report {
+  id          String   @id @default(uuid())
+  title       String
+  type        String
+  data        String?
+  projectId   String?
+  project     Project? @relation(fields: [projectId], references: [id])
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+}
+
+model Activity {
+  id          String   @id @default(uuid())
+  action      String
+  entityType  String
+  entityId    String
+  description String
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId      String
+  createdAt   DateTime @default(now())
+}
+
+model Issue {
+  id              String   @id @default(uuid())
+  title           String
+  description     String
+  priority        String   @default("MEDIUM")
+  status          String   @default("OPEN")
+  reporterId      String
+  assignedTo      String?
+  roleLevel       String   @default("EMPLOYEE")
+  projectId       String?
+  raisedDate      DateTime @default(now())
+  expectedEndDate DateTime?
+  tags            String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  reporter    User     @relation("IssueReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  assignee    User?    @relation("IssueAssignee", fields: [assignedTo], references: [id], onDelete: SetNull)
+  project     Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  comments    IssueComment[]
+  calendarEvents CalendarEvent[] @relation("CalendarEventIssue")
+}
+
+model IssueComment {
+  id        String   @id @default(uuid())
+  message    String
+  issueId   String
+  userId     String
+  createdAt  DateTime @default(now())
+
+  issue     Issue     @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  title     String
+  message   String
+  type      String   @default("INFO")
+  isRead    Boolean  @default(false)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+model CalendarEvent {
+  id             String    @id @default(uuid())
+  title          String
+  description    String?
+  startTime      DateTime
+  endTime        DateTime?
+  reminderAt     DateTime?
+  reminderSentAt DateTime?
+  userId         String
+  linkedTaskId   String?
+  linkedIssueId  String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  linkedTask     Task?     @relation("CalendarEventTask", fields: [linkedTaskId], references: [id], onDelete: SetNull)
+  linkedIssue    Issue?    @relation("CalendarEventIssue", fields: [linkedIssueId], references: [id], onDelete: SetNull)
+}
+
+model AutomationRule {
+  id        String   @id @default(uuid())
+  name      String
+  trigger   String   // TASK_OVERDUE | SCHEDULED
+  action    String   // SEND_NOTIFICATION
+  active    Boolean  @default(true)
+  createdBy String
+  createdAt DateTime @default(now())
+
+  creator User @relation("AutomationCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+}
+
+// Attendance Management
+model AttendanceLog {
+  id        String   @id @default(uuid())
+  employeeId String
+  logType   String   // IN / OUT
+  logTime   DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  employee User @relation("UserAttendanceLogs", fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+model AttendanceSummary {
+  employeeId     String
+  date           DateTime
+  totalMinutes   Int      @default(0)
+  late           Boolean  @default(false)
+  overtimeMinutes Int     @default(0)
+  status         String   @default("Present") // Present / Half Day / Absent
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  employee User @relation("UserAttendanceSummaries", fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, date])
+}
+
+// Leave Management
+model LeaveBalance {
+  employeeId  String
+  year        Int
+  sickTotal   Int @default(8)
+  sickUsed    Int @default(0)
+  casualTotal Int @default(8)
+  casualUsed  Int @default(0)
+  lopUsed     Int @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employee User @relation("UserLeaveBalances", fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, year])
+}
+
+model LeaveRequest {
+  id          String   @id @default(uuid())
+  employeeId  String
+  leaveType   String   // sick / casual / lop
+  startDate   DateTime
+  endDate     DateTime
+  totalDays   Int
+  status      String   @default("Pending") // Pending / Approved / Rejected / LOP
+  approvedBy  String?  // FK to employees.id
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employee User  @relation("EmployeeLeaveRequests", fields: [employeeId], references: [id], onDelete: Cascade)
+  approver User?  @relation("ApprovedLeaveRequests", fields: [approvedBy], references: [id])
+}
+
+// Escalations
+model Escalation {
+  id          String   @id @default(uuid())
+  employeeId  String
+  raisedBy    String
+  type        String
+  severity    String
+  description String
+  status      String   @default("Open") // Open / Closed
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employee User @relation("EmployeeEscalations", fields: [employeeId], references: [id], onDelete: Cascade)
+  raiser   User @relation("RaisedEscalations", fields: [raisedBy], references: [id])
+}

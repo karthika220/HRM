@@ -1,0 +1,38 @@
+{
+  "name": "projectflow-backend",
+  "version": "1.0.0",
+  "description": "ProjectFlow Backend API",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "nodemon src/index.js",
+    "start": "node src/index.js",
+    "db:push": "npx prisma db push",
+    "db:seed": "node prisma/seed.js",
+    "db:studio": "npx prisma studio",
+    "notifications:check-overdue": "node src/utils/notificationJobs.js",
+    "notifications:seed-demo": "node src/utils/seedNotifications.js",
+    "notifications:check-reminders": "node src/utils/calendarReminderJobs.js",
+    "demo:calendar-reminder": "node src/utils/seedCalendarReminder.js",
+    "automation:seed": "node src/utils/seedAutomationRules.js",
+    "automation:friday-reminder": "node src/utils/fridayTimesheetReminder.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.98.0",
+    "axios": "^1.13.5",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^8.0.1",
+    "pg": "^8.19.0",
+    "sqlite3": "^5.1.7",
+    "supertest": "^7.2.2"
+  },
+  "devDependencies": {
+    "@prisma/client": "^5.22.0",
+    "nodemon": "^3.0.2",
+    "prisma": "^5.22.0"
+  }
+}
