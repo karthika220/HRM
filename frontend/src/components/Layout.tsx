@@ -2,10 +2,10 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
 import {
   LayoutDashboard, FolderKanban, CheckSquare, Users,
-  BarChart3, Clock, LogOut, Bell, ChevronLeft, ChevronRight, Menu, ChevronDown, User, Settings, Key, BellRing, AlertTriangle, Zap, Calendar, Users2, CalendarDays, FileText
+  BarChart3, Clock, LogOut, Bell, ChevronLeft, ChevronRight, Menu, ChevronDown, User, Settings, Key, BellRing, AlertTriangle, Zap, Calendar, Users2, CalendarDays, FileText, Shield
 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
-import api from '../api/axios'
+import api from '../utils/api'
 import { useNotifications } from '../utils/notifications'
 import TimerBadge from './TimerBadge'
 
@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { to: '/projects', label: 'Projects', icon: FolderKanban, section: 'MAIN' },
   { to: '/tasks', label: 'Tasks', icon: CheckSquare, section: 'MAIN' },
   { to: '/issues', label: 'Issues', icon: AlertTriangle, section: 'MAIN' },
+  { to: '/vault', label: 'Vault', icon: Shield, section: 'MAIN' },
   // MANAGE
   { to: '/timesheets', label: 'Timesheets', icon: Clock, section: 'MANAGE' },
   { to: '/team', label: 'Team', icon: Users, section: 'MANAGE' },
@@ -172,16 +173,16 @@ export default function Layout() {
         ${mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}>
         {/* Logo */}
-        <div className={`flex items-center h-16 px-4 border-b border-white/10 ${collapsed ? 'justify-center' : 'gap-3'}`}>
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-teal to-brand-mint flex-shrink-0 flex items-center justify-center">
-            <span className="text-black font-bold text-xs">PF</span>
-          </div>
-          {!collapsed && (
-            <div>
-              <div className="font-rubik font-bold text-white text-sm leading-tight">ProjectFlow</div>
-              <div className="text-[10px] text-zinc-500">Project Management</div>
-            </div>
-          )}
+        <div className={`flex items-center h-16 px-4 border-b border-white/10 ${collapsed ? 'justify-center' : ''}`}>
+          <img 
+            src="/logo.png" 
+            alt="Workforce" 
+            className={`flex-shrink-0 transition-all duration-300 object-contain ${
+              collapsed 
+                ? 'h-8 w-auto' 
+                : 'h-10 w-auto'
+            }`}
+          />
         </div>
 
         {/* Nav */}

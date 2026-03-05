@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { BarChart3, Plus, Trash2, X, FileText, TrendingUp, Clock, Download, ChevronDown } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
-import api from '../api/axios'
+import api from '../utils/api'
 import { format } from 'date-fns'
+import { useProjects } from '../hooks/useCentralizedData'
+import { Project, TaskStatus, ProjectStatus, ProjectReport } from '../types'
 
 // Demo data fallback
 const DEMO_REPORTS = [
@@ -110,7 +112,7 @@ export default function ReportsPage() {
   // New states for donut charts and project reports
   const [taskStatusData, setTaskStatusData] = useState<TaskStatus[]>([])
   const [projectStatusData, setProjectStatusData] = useState<ProjectStatus[]>([])
-  const [projects, setProjects] = useState<Project[]>([])
+  const { projects: centralizedProjects, loading: projectsLoading, error: projectsError, refetch: refetchProjects } = useProjects()
   const [selectedProject, setSelectedProject] = useState<string>('')
   const [projectReport, setProjectReport] = useState<ProjectReport | null>(null)
   const [loadingProjectReport, setLoadingProjectReport] = useState(false)
@@ -120,7 +122,6 @@ export default function ReportsPage() {
   useEffect(() => {
     loadReports()
     loadDonutData()
-    loadProjects()
     
     // Set up periodic refresh for live updates (every 30 seconds)
     const interval = setInterval(() => {
@@ -129,6 +130,14 @@ export default function ReportsPage() {
     
     return () => clearInterval(interval)
   }, [])
+
+  // Log projects data when centralizedProjects changes
+  useEffect(() => {
+    console.log('🔍 ReportsPage - Projects data received:', centralizedProjects)
+    console.log('📊 Projects count:', centralizedProjects?.length || 0)
+    console.log('📋 Projects loading:', projectsLoading)
+    console.log('❌ Projects error:', projectsError)
+  }, [centralizedProjects, projectsLoading, projectsError])
 
   const loadDonutData = async () => {
     try {
@@ -140,15 +149,6 @@ export default function ReportsPage() {
       setProjectStatusData(projectStatusRes.data)
     } catch (error) {
       console.error('Failed to load donut data:', error)
-    }
-  }
-
-  const loadProjects = async () => {
-    try {
-      const res = await api.get('/reports/projects')
-      setProjects(res.data)
-    } catch (error) {
-      console.error('Failed to load projects:', error)
     }
   }
 
@@ -366,7 +366,7 @@ export default function ReportsPage() {
             className="w-full px-4 py-2.5 bg-[#18181B] border border-white/10 rounded-xl text-white focus:border-brand-teal outline-none appearance-none cursor-pointer"
           >
             <option value="">Select a project to view report</option>
-            {projects.map(project => (
+            {centralizedProjects && centralizedProjects.map((project: any) => (
               <option key={project.id} value={project.id}>{project.name}</option>
             ))}
           </select>

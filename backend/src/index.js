@@ -2,16 +2,30 @@ require('dotenv').config({ path: __dirname + '/.env' });
 const express = require('express');
 const cors = require('cors');
 const { testConnection } = require('./prisma');
+const { 
+  requestLogger, 
+  enhancedRequestLogger, 
+  performanceLogger, 
+  statsLogger 
+} = require('./middleware/requestLogger');
 
 const app = express();
 
 app.use(cors({
-  origin: true,
-  credentials: true
+  origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://127.0.0.1:51355', 'http://127.0.0.1:52673', 'http://10.98.81.39:5175', 'http://127.0.0.1:54589'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Apply request logging middleware globally
+app.use(requestLogger);
+app.use(enhancedRequestLogger);
+app.use(performanceLogger);
+app.use(statsLogger);
 
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
@@ -29,6 +43,13 @@ const attendanceRoutes = require('./routes/attendance');
 const leaveRoutes = require('./routes/leave.routes');
 const hrRoutes = require('./routes/hr');
 const escalationRoutes = require('./routes/escalation.routes');
+const centralizedRoutes = require('./routes/centralized');
+const taskTimeRoutes = require('./routes/taskTime.routes');
+const errorHandler = require('./middleware/errorHandler');
+
+// Import escalation service
+const { startEscalationScheduler } = require('./services/escalationService');
+const holidayRoutes = require('./routes/holidays');
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -47,15 +68,18 @@ app.use('/api/attendance', attendanceRoutes);
 app.use('/api/leave', leaveRoutes);
 app.use('/api/hr', hrRoutes);
 app.use('/api/escalations', escalationRoutes);
+app.use('/api/centralized', centralizedRoutes);
+app.use('/api/holidays', holidayRoutes);
+app.use('/api/task-time', taskTimeRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(err.status || 500).json({ message: err.message || 'Internal Server Error' });
-});
+// HRM & PMS - Centralized Error Handling Middleware (must be last)
+// Project: Human Resource Management & Project Management System
+// Provides consistent error handling for all API endpoints
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 3001;
 
@@ -70,9 +94,13 @@ async function startServer() {
       process.exit(1);
     }
 
+    // Start escalation background job
+    console.log('🔄 Starting task escalation background job...');
+    startEscalationScheduler();
+
     // Start server
     const server = app.listen(PORT, () => {
-      console.log(`🚀 ProjectFlow API running on port ${PORT}`);
+      console.log(`🚀 Workforce API running on port ${PORT}`);
       console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
       console.log(`🔐 Auth endpoints: http://localhost:${PORT}/api/auth`);
       console.log(`👥 Users endpoint: http://localhost:${PORT}/api/users`);

@@ -2,8 +2,11 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { FolderKanban, CheckSquare, AlertTriangle, TrendingUp, Clock, Target, Activity } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
-import api from '../api/axios'
+import api from '../utils/api'
 import { format } from 'date-fns'
+import { useCentralizedData } from '../hooks/useCentralizedData'
+// Recharts imports
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 
 // Demo data fallback
 const DEMO_DASHBOARD_STATS: DashboardStats = {
@@ -36,6 +39,13 @@ const DEMO_ACTIVITY: Activity[] = [
 ]
 
 const DEMO_TASK_COMPLETION = {
+  totalTasks: 100,
+  breakdown: [
+    { status: 'DONE', count: 40, percentage: 40 },
+    { status: 'IN_PROGRESS', count: 25, percentage: 25 },
+    { status: 'TODO', count: 20, percentage: 20 },
+    { status: 'DELAYED', count: 15, percentage: 15 }
+  ],
   weekly: [
     { week: 'This Week', planned: 20, completed: 16, percentage: 80 },
     { week: 'Last Week', planned: 18, completed: 14, percentage: 78 }
@@ -119,12 +129,24 @@ interface Milestone {
 }
 
 interface TaskCompletion {
-  totalTasks: number
+  totalTasks: number;
   breakdown: {
-    status: string
-    count: number
-    percentage: number
-  }[]
+    status: string;
+    count: number;
+    percentage: number;
+  }[];
+  weekly: {
+    week: string;
+    planned: number;
+    completed: number;
+    percentage: number;
+  }[];
+  monthly: {
+    month: string;
+    planned: number;
+    completed: number;
+    percentage: number;
+  }[];
 }
 
 interface Activity {
@@ -132,6 +154,7 @@ interface Activity {
   type: string
   user: string
   action: string
+  description?: string
   time: string
   project: string
   createdAt: string
@@ -146,6 +169,7 @@ const PRIORITY_COLORS: Record<string, string> = {
 
 export default function DashboardPage() {
   const { user } = useAuthStore()
+  const { data: centralizedData, loading: centralizedLoading, error: centralizedError } = useCentralizedData()
   const [loading, setLoading] = useState(true)
   
   // State for all API data
@@ -163,36 +187,73 @@ export default function DashboardPage() {
       try {
         setLoading(true)
         
-        // Parallel API calls
-        const [
-          statsRes,
-          taskWeeklyRes,
-          teamUtilizationRes,
-          projectHealthRes,
-          myTasksRes,
-          milestonesRes,
-          activityRes,
-          taskCompletionRes
-        ] = await Promise.all([
-          api.get('/dashboard/stats'),
-          api.get('/dashboard/task-weekly'),
-          api.get('/dashboard/team-utilization'),
-          api.get('/dashboard/project-health'),
-          api.get('/dashboard/my-tasks'),
-          api.get('/dashboard/milestones'),
-          api.get('/dashboard/activity'),
-          api.get('/dashboard/task-completion')
-        ])
+        // Use centralized data to calculate dashboard stats
+        if (centralizedData && !centralizedLoading) {
+          // Calculate stats from centralized data
+          const activeProjects = centralizedData.projects.filter((p: any) => p.status !== 'COMPLETED').length
+          const completedTasks = centralizedData.tasks.filter((t: any) => t.status === 'DONE').length
+          const overdueTasks = centralizedData.tasks.filter((t: any) => 
+            t.status !== 'DONE' && new Date(t.dueDate) < new Date()
+          ).length
+          const teamMembers = centralizedData.employees.filter((e: any) => e.isActive).length
+          const totalProjects = centralizedData.projects.length
 
-        // Use real data if available, otherwise use demo data
-        setStats(statsRes.data || DEMO_DASHBOARD_STATS)
-        setTaskWeekly(taskWeeklyRes.data || DEMO_TASK_WEEKLY)
-        setTeamUtilization(teamUtilizationRes.data || DEMO_TEAM_UTILIZATION)
-        setProjectHealth(projectHealthRes.data || [])
-        setMyTasks(myTasksRes.data || [])
-        setMilestones(milestonesRes.data || [])
-        setActivity(activityRes.data || DEMO_ACTIVITY)
-        setTaskCompletion(taskCompletionRes.data || DEMO_TASK_COMPLETION)
+          setStats({
+            activeProjects,
+            completedTasks,
+            overdueTasks,
+            teamMembers,
+            totalProjects
+          })
+
+          // Calculate project health
+          const projectHealthData = centralizedData.projects.map((p: any) => ({
+            name: p.name,
+            progress: p.progress || 0
+          }))
+          setProjectHealth(projectHealthData)
+
+          // Set my tasks (tasks assigned to current user)
+          const userTasks = centralizedData.tasks.filter((t: any) => t.assigneeId === user?.id)
+          setMyTasks(userTasks)
+
+          // Keep existing demo data for other metrics
+          setTaskWeekly(DEMO_TASK_WEEKLY)
+          setTeamUtilization(DEMO_TEAM_UTILIZATION)
+          setMilestones([])
+          setActivity(DEMO_ACTIVITY)
+          setTaskCompletion(DEMO_TASK_COMPLETION)
+        } else {
+          // Fallback to API calls if centralized data not available
+          const [
+            statsRes,
+            taskWeeklyRes,
+            teamUtilizationRes,
+            projectHealthRes,
+            myTasksRes,
+            milestonesRes,
+            activityRes,
+            taskCompletionRes
+          ] = await Promise.all([
+            api.get('/dashboard/stats'),
+            api.get('/dashboard/task-weekly'),
+            api.get('/dashboard/team-utilization'),
+            api.get('/dashboard/project-health'),
+            api.get('/dashboard/my-tasks'),
+            api.get('/dashboard/milestones'),
+            api.get('/dashboard/activity'),
+            api.get('/dashboard/task-completion')
+          ])
+
+          setStats(statsRes.data || DEMO_DASHBOARD_STATS)
+          setTaskWeekly(taskWeeklyRes.data || DEMO_TASK_WEEKLY)
+          setTeamUtilization(teamUtilizationRes.data || DEMO_TEAM_UTILIZATION)
+          setProjectHealth(projectHealthRes.data || [])
+          setMyTasks(myTasksRes.data || [])
+          setMilestones(milestonesRes.data || [])
+          setActivity(activityRes.data || DEMO_ACTIVITY)
+          setTaskCompletion(taskCompletionRes.data || DEMO_TASK_COMPLETION)
+        }
       } catch (error) {
         console.error('Failed to fetch dashboard data:', error)
         
@@ -221,12 +282,39 @@ export default function DashboardPage() {
   }, [])
 
   // Filter tasks by open statuses and sort by latest first
-  const openTasks = Array.isArray(myTasks)
-    ? myTasks
-        .filter(t => !["DONE", "COMPLETED"].includes(t.status))
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-        .slice(0, 5) // Maximum 5 tasks initially
-    : [];
+  const openTasks = myTasks.filter(task => 
+    task.status !== 'DONE' && task.status !== 'COMPLETED'
+  ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
+  // Chart data preparation
+  const projectStatusData = [
+    { name: 'Planning', value: centralizedData?.projects.filter((p: any) => p.status === 'PLANNING').length || 3, color: '#6b7280' },
+    { name: 'In Progress', value: centralizedData?.projects.filter((p: any) => p.status === 'IN_PROGRESS').length || 7, color: '#06b6d4' },
+    { name: 'Completed', value: centralizedData?.projects.filter((p: any) => p.status === 'COMPLETED').length || 4, color: '#10b981' },
+    { name: 'On Hold', value: centralizedData?.projects.filter((p: any) => p.status === 'ON_HOLD').length || 1, color: '#f59e0b' }
+  ]
+
+  const taskCompletionData = [
+    { name: 'Todo', value: centralizedData?.tasks.filter((t: any) => t.status === 'TODO' || t.status === 'TODO').length || 20, color: '#6b7280' },
+    { name: 'In Progress', value: centralizedData?.tasks.filter((t: any) => t.status === 'IN_PROGRESS').length || 25, color: '#06b6d4' },
+    { name: 'Review', value: centralizedData?.tasks.filter((t: any) => t.status === 'IN_REVIEW').length || 15, color: '#f59e0b' },
+    { name: 'Done', value: centralizedData?.tasks.filter((t: any) => t.status === 'DONE').length || 40, color: '#10b981' }
+  ]
+
+  // Custom tooltip for charts
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-[#09090B] border border-white/20 rounded-lg p-3 shadow-lg">
+          <p className="text-white font-medium">{label}</p>
+          <p className="text-brand-teal font-mono">
+            {payload[0].value}
+          </p>
+        </div>
+      )
+    }
+    return null
+  }
 
   // Debug: Log myTasks data
   console.log('My Tasks Data:', myTasks);
@@ -558,6 +646,89 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Charts Section - New */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Project Status Pie Chart */}
+        <div className="bg-[#09090B] border border-white/10 rounded-2xl p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <FolderKanban className="w-5 h-5 text-brand-teal" />
+            <h2 className="font-rubik font-semibold text-white">Project Status Overview</h2>
+          </div>
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie
+                data={projectStatusData}
+                cx="50%"
+                cy="50%"
+                innerRadius={60}
+                outerRadius={100}
+                paddingAngle={2}
+                dataKey="value"
+              >
+              {projectStatusData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={entry.color} />
+              ))}
+            </Pie>
+            <Tooltip content={<CustomTooltip />} />
+          </PieChart>
+          </ResponsiveContainer>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            {projectStatusData.map((item, index) => (
+              <div key={index} className="flex items-center gap-2">
+                <div 
+                  className="w-3 h-3 rounded-full" 
+                  style={{ backgroundColor: item.color }}
+                />
+                <span className="text-xs text-zinc-400">{item.name}</span>
+                <span className="text-xs text-white font-mono ml-auto">{item.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Task Completion Bar Chart */}
+        <div className="bg-[#09090B] border border-white/10 rounded-2xl p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <CheckSquare className="w-5 h-5 text-brand-mint" />
+            <h2 className="font-rubik font-semibold text-white">Task Completion Status</h2>
+          </div>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={taskCompletionData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <XAxis 
+                dataKey="name" 
+                tick={{ fill: '#9ca3af', fontSize: 12 }}
+                axisLine={{ stroke: '#374151' }}
+              />
+              <YAxis 
+                tick={{ fill: '#9ca3af', fontSize: 12 }}
+                axisLine={{ stroke: '#374151' }}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                {taskCompletionData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+          <div className="mt-4 p-3 bg-white/[0.02] rounded-lg">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-zinc-400">Total Tasks</span>
+              <span className="text-white font-mono">
+                {taskCompletionData.reduce((sum, item) => sum + item.value, 0)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-sm mt-2">
+              <span className="text-zinc-400">Completion Rate</span>
+              <span className="text-brand-mint font-mono">
+                {Math.round((taskCompletionData.find(item => item.name === 'Done')?.value || 0) / 
+                  taskCompletionData.reduce((sum, item) => sum + item.value, 0) * 100)}%
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Upcoming Milestones */}
       <div className="bg-[#09090B] border border-white/10 rounded-2xl p-5">

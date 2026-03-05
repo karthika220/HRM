@@ -107,9 +107,9 @@ export default function SignUpPage() {
           {/* Logo */}
           <div className="flex flex-col items-center mb-8">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-teal to-brand-mint flex items-center justify-center mb-4 shadow-[0_0_30px_rgba(0,161,199,0.4)]">
-              <span className="text-black font-rubik font-bold text-2xl">PF</span>
+              <span className="text-black font-rubik font-bold text-2xl">WF</span>
             </div>
-            <h1 className="font-rubik font-bold text-2xl text-white">ProjectFlow</h1>
+            <h1 className="font-rubik font-bold text-2xl text-white">Workforce</h1>
             <p className="text-zinc-400 text-sm mt-1">Create your account</p>
           </div>
 

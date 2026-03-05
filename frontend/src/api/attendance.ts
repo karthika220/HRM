@@ -4,6 +4,10 @@ import api from './axios'
 // Create a version without authentication for demo purposes
 const publicApi = axios.create({
   baseURL: 'http://localhost:3001/api',
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
 })
 
 export const attendanceService = {

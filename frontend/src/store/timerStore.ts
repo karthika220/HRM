@@ -16,7 +16,7 @@ interface TimerActions {
 }
 
 export const useTimerStore = create<TimerState & TimerActions>((set, get) => {
-  let interval: number | null = null
+  let interval: NodeJS.Timeout | null = null
 
   // Load timer state from localStorage on init
   const savedState = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('timerState') || '{}') : {}

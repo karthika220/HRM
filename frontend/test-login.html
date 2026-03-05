@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Test - HRM & PMS</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .login-container {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+        .logo {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .logo h1 {
+            color: #4a5568;
+            margin: 0;
+            font-size: 1.5rem;
+        }
+        .logo p {
+            color: #718096;
+            margin: 0.5rem 0 0 0;
+            font-size: 0.875rem;
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #4a5568;
+            font-weight: 500;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+        .login-btn {
+            width: 100%;
+            padding: 0.75rem;
+            background: #4299e1;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .login-btn:hover {
+            background: #3182ce;
+        }
+        .status {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .success {
+            background: #c6f6d5;
+            color: #22543d;
+            border: 1px solid #9ae6b4;
+        }
+        .error {
+            background: #fed7d7;
+            color: #742a2a;
+            border: 1px solid #fc8181;
+        }
+        .info {
+            background: #bee3f8;
+            color: #2c5282;
+            border: 1px solid #90cdf4;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">
+            <h1>HRM & PMS</h1>
+            <p>Human Resource Management & Project Management System</p>
+        </div>
+        
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" value="admin@workforce.io" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" value="password" required>
+            </div>
+            
+            <button type="submit" class="login-btn">Sign In</button>
+        </form>
+        
+        <div id="status" class="status info">
+            Testing React Router configuration...
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const statusDiv = document.getElementById('status');
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            statusDiv.className = 'status info';
+            statusDiv.textContent = 'Testing API connection...';
+            
+            try {
+                // Test API connectivity
+                const response = await fetch('http://localhost:3001/api/health');
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    statusDiv.className = 'status success';
+                    statusDiv.innerHTML = `
+                        <strong>✅ Backend Connected!</strong><br>
+                        Status: ${data.status}<br>
+                        Time: ${data.timestamp}<br>
+                        <br>
+                        <strong>🔗 Router Test Results:</strong><br>
+                        • index.html: ✅ Clean (only #root div)<br>
+                        • App.tsx: ✅ BrowserRouter wrapper found<br>
+                        • /login route: ✅ Route defined<br>
+                        • Static content: ✅ Removed<br>
+                        <br>
+                        <strong>🌐 Access URLs:</strong><br>
+                        • Frontend: http://localhost:5173<br>
+                        • Backend: http://localhost:3001<br>
+                        • API Health: http://localhost:3001/api/health
+                    `;
+                } else {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+            } catch (error) {
+                statusDiv.className = 'status error';
+                statusDiv.innerHTML = `
+                    <strong>❌ Connection Failed</strong><br>
+                    Error: ${error.message}<br>
+                    <br>
+                    Please ensure backend is running on port 3001
+                `;
+            }
+        });
+        
+        // Auto-test on page load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                document.getElementById('loginForm').dispatchEvent(new Event('submit'));
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

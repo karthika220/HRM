@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuthStore } from '../store/authStore'
-import api from '../api/axios'
+import api from '../utils/api'
 import { User, Calendar, AlertTriangle } from 'lucide-react'
 
 interface UserProfile {

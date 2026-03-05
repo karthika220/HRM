@@ -1,9 +1,10 @@
 import { useEffect, useState, useRef } from 'react'
-import { CheckSquare, Search, Filter, Plus, X, MessageSquare, Clock, AlertTriangle, Calendar, User } from 'lucide-react'
+import { CheckSquare, Search, Filter, Plus, X, MessageSquare, Clock, AlertTriangle, Calendar, User, Play } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
-import api from '../api/axios'
+import api from '../utils/api'
 import { format, differenceInDays } from 'date-fns'
 import { canManageTasks, isSuperAdmin, isTeamLead } from '../utils/permissions'
+import TaskTimer from '../components/TaskTimer'
 
 // Demo data fallback
 const DEMO_TASKS = [
@@ -237,6 +238,11 @@ export default function TasksPage() {
   const [showViewsDropdown, setShowViewsDropdown] = useState(false)
   const [selectedView, setSelectedView] = useState<string>('')
   const viewsDropdownRef = useRef<HTMLDivElement>(null)
+  const [showStartTimerModal, setShowStartTimerModal] = useState(false)
+  const [selectedTaskForTimer, setSelectedTaskForTimer] = useState('')
+  const [activeTimer, setActiveTimer] = useState<any>(null)
+  const [timerSeconds, setTimerSeconds] = useState(0)
+  const [timerInterval, setTimerInterval] = useState<NodeJS.Timeout | null>(null)
   const [newTask, setNewTask] = useState({
     title: '',
     description: '',
@@ -476,6 +482,106 @@ export default function TasksPage() {
     }
   }
 
+  // Timer functions
+  const startTimer = async () => {
+    if (!selectedTaskForTimer) {
+      alert('Please select a task to start timer')
+      return
+    }
+
+    try {
+      const response = await api.post(`/task-time/start/${selectedTaskForTimer}`)
+      
+      if (response.data.success) {
+        setActiveTimer(response.data.data)
+        setTimerSeconds(0)
+        setShowStartTimerModal(false)
+        setSelectedTaskForTimer('')
+        
+        // Start live timer
+        const interval = setInterval(() => {
+          setTimerSeconds(prev => prev + 1)
+        }, 1000)
+        setTimerInterval(interval)
+        
+        alert('Timer started successfully!')
+      } else {
+        alert(response.data.message || 'Failed to start timer')
+      }
+    } catch (error: any) {
+      console.error('Failed to start timer:', error)
+      alert(error.response?.data?.message || 'Failed to start timer')
+    }
+  }
+
+  const stopTimer = async () => {
+    if (!activeTimer) return
+
+    try {
+      const response = await api.post(`/task-time/stop/${activeTimer.taskId}`)
+      
+      if (response.data.success) {
+        setActiveTimer(null)
+        setTimerSeconds(0)
+        
+        // Clear timer interval
+        if (timerInterval) {
+          clearInterval(timerInterval)
+          setTimerInterval(null)
+        }
+        
+        alert('Timer stopped successfully!')
+      } else {
+        alert(response.data.message || 'Failed to stop timer')
+      }
+    } catch (error: any) {
+      console.error('Failed to stop timer:', error)
+      alert(error.response?.data?.message || 'Failed to stop timer')
+    }
+  }
+
+  // Format seconds to HH:MM:SS
+  const formatTime = (totalSeconds: number) => {
+    const hours = Math.floor(totalSeconds / 3600)
+    const minutes = Math.floor((totalSeconds % 3600) / 60)
+    const seconds = totalSeconds % 60
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+  }
+
+  // Check for active timer on component mount
+  useEffect(() => {
+    const checkActiveTimer = async () => {
+      try {
+        const response = await api.get('/task-time/active')
+        if (response.data.success && response.data.data) {
+          setActiveTimer(response.data.data)
+          
+          // Calculate elapsed time
+          const startTime = new Date(response.data.data.startTime)
+          const elapsed = Math.floor((Date.now() - startTime.getTime()) / 1000)
+          setTimerSeconds(elapsed)
+          
+          // Start live timer
+          const interval = setInterval(() => {
+            setTimerSeconds(prev => prev + 1)
+          }, 1000)
+          setTimerInterval(interval)
+        }
+      } catch (error) {
+        console.error('Failed to check active timer:', error)
+      }
+    }
+
+    checkActiveTimer()
+
+    // Cleanup on unmount
+    return () => {
+      if (timerInterval) {
+        clearInterval(timerInterval)
+      }
+    }
+  }, [])
+
   const filtered = tasks.filter(t =>
     t.title.toLowerCase().includes(search.toLowerCase()) ||
     t.project?.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -491,16 +597,39 @@ export default function TasksPage() {
           <div>
             <h1 className="font-rubik font-bold text-2xl text-white">Tasks</h1>
             <p className="text-zinc-500 text-sm mt-0.5">{filtered.length} tasks</p>
+            {activeTimer && (
+              <div className="flex items-center gap-2 mt-2 text-brand-teal">
+                <Clock className="w-4 h-4" />
+                <span className="text-sm font-medium">Active Timer: {formatTime(timerSeconds)}</span>
+                <button
+                  onClick={stopTimer}
+                  className="ml-2 px-2 py-1 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors text-xs"
+                >
+                  Stop
+                </button>
+              </div>
+            )}
           </div>
-          {canCreate && (
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-brand-teal to-brand-mint text-black font-bold rounded-xl hover:opacity-90 transition-all shadow-[0_0_20px_rgba(0,161,199,0.3)]"
-            >
-              <Plus className="w-4 h-4" />
-              Add Task
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            {canCreate && (
+              <button
+                onClick={() => setShowStartTimerModal(true)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-[#2A2A2A] border border-white/10 text-white font-medium rounded-xl hover:bg-[#3A3A3A] transition-all"
+              >
+                <Play className="w-4 h-4" />
+                Start Timer
+              </button>
+            )}
+            {canCreate && (
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-brand-teal to-brand-mint text-black font-bold rounded-xl hover:opacity-90 transition-all shadow-[0_0_20px_rgba(0,161,199,0.3)]"
+              >
+                <Plus className="w-4 h-4" />
+                Add Task
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Filters */}
@@ -705,6 +834,9 @@ export default function TasksPage() {
                         </span>
                       </div>
                     )}
+                    
+                    {/* Task Timer */}
+                    <TaskTimer taskId={task.id} taskTitle={task.title} className="mt-2" />
                   </div>
                 </div>
               </div>
@@ -986,6 +1118,54 @@ export default function TasksPage() {
                 className="px-6 py-3 bg-gradient-to-r from-brand-teal to-brand-mint text-black font-bold rounded-xl hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Create Task
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Start Timer Modal */}
+      {showStartTimerModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#09090B] border border-white/10 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto animate-slide-up">
+            <div className="flex items-center justify-between p-6 border-b border-white/10">
+              <h2 className="font-rubik font-bold text-white text-lg">Start Timer</h2>
+              <button onClick={() => setShowStartTimerModal(false)} className="p-2 hover:bg-white/5 rounded-xl text-zinc-400">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-white mb-2">Select Task:</label>
+                <select 
+                  value={selectedTaskForTimer} 
+                  onChange={(e) => setSelectedTaskForTimer(e.target.value)}
+                  className="w-full bg-[#18181B] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-brand-teal focus:ring-2 focus:ring-brand-teal/20 outline-none transition-all"
+                >
+                  <option value="">Choose a task...</option>
+                  {tasks.map(task => (
+                    <option key={task.id} value={task.id}>
+                      {task.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-3 p-6 border-t border-white/10">
+              <button
+                onClick={() => setShowStartTimerModal(false)}
+                className="px-6 py-3 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={startTimer}
+                disabled={!selectedTaskForTimer}
+                className="px-6 py-3 bg-gradient-to-r from-brand-teal to-brand-mint text-black font-bold rounded-xl hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Start Timer
               </button>
             </div>
           </div>

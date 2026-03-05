@@ -166,8 +166,52 @@ const sendDelayedTaskEmail = async (options) => {
   }
 };
 
+/**
+ * Send generic email notification
+ * @param {Object} options - Email options
+ * @param {string} options.to - Recipient email
+ * @param {string} options.subject - Email subject
+ * @param {string} options.message - Email message (plain text)
+ * @param {string} options.priority - Email priority (low, normal, high)
+ */
+const sendEmailNotification = async (options) => {
+  try {
+    const { to, subject, message, priority = 'normal' } = options;
+
+    const mailOptions = {
+      from: 'mahanisha143521@gmail.com',
+      to: to,
+      subject: subject,
+      text: message,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f5f5f5;">
+          <div style="background-color: #09090B; padding: 20px; border-radius: 8px; color: white;">
+            <h1 style="margin: 0; color: #00FFAA; font-size: 24px;">${priority === 'high' ? '🚨' : '📧'} Notification</h1>
+            <p style="margin: 10px 0; color: #ccc;">HRM & PMS System Notification</p>
+          </div>
+          
+          <div style="background-color: white; padding: 20px; border-radius: 8px; margin-top: 20px;">
+            <div style="white-space: pre-wrap; color: #333; font-family: monospace;">${message}</div>
+          </div>
+          
+          <div style="text-align: center; margin-top: 20px; color: #666; font-size: 12px;">
+            <p>This is an automated notification from HRM & PMS System.</p>
+            <p>If you have any questions, please contact your system administrator.</p>
+          </div>
+        </div>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`Email notification sent to ${to}: ${subject}`);
+  } catch (error) {
+    console.error('Failed to send email notification:', error);
+  }
+};
+
 module.exports = {
   sendTaskNotificationEmail,
   sendDelayedTaskEmail,
+  sendEmailNotification,
   STATIC_RECEIVER
 };

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { X, AlertTriangle, Plus, Clock } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
-import api from '../api/axios'
+import api from '../utils/api'
 import { format } from 'date-fns'
 
 interface Employee {

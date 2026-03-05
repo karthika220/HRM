@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useNavigate } from 'react-router-dom'
-import api from '../api/axios'
+import api from '../utils/api'
 import { Key, Eye, EyeOff, Shield } from 'lucide-react'
 
 // Demo data fallback
 const DEMO_SYSTEM_SETTINGS = {
-  systemName: 'ProjectFlow HRMS',
+  systemName: 'Workforce HRMS',
   version: '2.0.0',
   environment: 'development',
   maintenanceMode: false,

@@ -3,6 +3,8 @@ const { prisma } = require('../prisma');
 const { authenticate, authorize } = require('../middleware/auth');
 const { isSuperAdmin, isTeamLead } = require('../middleware/roles');
 const { SERVICE_WORKFLOWS } = require('../utils/serviceWorkflows');
+const dataStore = require('../controllers/dataStore');
+const { logProjectCreated } = require('../utils/auditLogger');
 
 const router = express.Router();
 
@@ -178,6 +180,16 @@ router.get('/', authenticate, async (req, res) => {
 };
     });
 
+    // DEBUG: Log actual response structure
+    console.log("=== BACKEND PROJECTS RESPONSE DEBUG ===");
+    console.log("Raw projects count:", projects.length);
+    console.log("ProjectsWithProgress count:", projectsWithProgress.length);
+    console.log("Type of projectsWithProgress:", typeof projectsWithProgress);
+    console.log("Is projectsWithProgress an array?", Array.isArray(projectsWithProgress));
+    console.log("First project structure:", projectsWithProgress[0]);
+    console.log("Response type: Direct array (not wrapped in success object)");
+    console.log("==========================================");
+
     res.json(projectsWithProgress);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -297,6 +309,20 @@ if (memberIds && Array.isArray(memberIds) && memberIds.length > 0) {
         userId: req.user.id,
       },
     });
+
+    // Audit logging (non-blocking)
+    logProjectCreated(req.user.id, project.id, {
+      name: project.name,
+      status: project.status,
+      budget: project.budget,
+    }).catch(error => {
+      console.error('Audit logging failed:', error);
+      // Don't fail the request if audit logging fails
+    });
+
+    // Update centralized data cache
+    await dataStore.updateCache('projects');
+    await dataStore.updateCache('tasks');
 
     res.status(201).json(project);
   } catch (err) {

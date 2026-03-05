@@ -20,14 +20,18 @@ import IssueDetailPage from './pages/IssueDetailPage'
 import TeamPage from './pages/TeamPage'
 import AutomationPage from './pages/AutomationPage'
 import CalendarPage from './pages/CalendarPage'
+import VaultPage from './pages/VaultPage'
 // People module imports
 import PeopleDashboardPage from './pages/people/PeopleDashboardPage'
 import EmployeesPage from './pages/people/EmployeesPage'
 import AttendancePage from './pages/people/AttendancePage'
 import LeaveManagementPage from './pages/people/LeaveManagementPage'
+// Error test component
+import ErrorTest from './components/ErrorTest'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { token } = useAuthStore()
+  
   if (!token) {
     return <Navigate to="/login" replace />
   }
@@ -40,6 +44,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignUpPage />} />
+        <Route path="/error-test" element={<ErrorTest />} />
         <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
@@ -52,6 +57,7 @@ export default function App() {
           <Route path="team" element={<TeamPage />} />
           <Route path="automation" element={<AutomationPage />} />
           <Route path="calendar" element={<CalendarPage />} />
+          <Route path="vault" element={<VaultPage />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="reports" element={<ReportsPage />} />
           <Route path="notifications" element={<NotificationsPage />} />

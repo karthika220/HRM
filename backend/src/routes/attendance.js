@@ -1,6 +1,14 @@
 const express = require('express');
 const { prisma } = require('../prisma');
 const { authenticate } = require('../middleware/auth');
+const { 
+  calculateAttendanceSummary, 
+  detectLateCheckIn, 
+  calculateOvertime, 
+  generateNotifications, 
+  generateTimelineData,
+  BUSINESS_RULES 
+} = require('../utils/attendanceCalculations');
 
 const router = express.Router();
 
@@ -177,19 +185,296 @@ router.get('/my-timeline', authenticate, async (req, res) => {
   try {
     console.log('My attendance timeline - User:', { id: req.user.id, name: req.user.name });
     
-    // Mock timeline events for current user - in real implementation this would be dynamic
-    const attendanceEvents = [
-      { type: "checkin", time: "09:02" },
-      { type: "lunch_start", time: "13:47" },
-      { type: "lunch_end", time: "14:32" },
-      { type: "checkout", time: null }
-    ];
+    // Validate user exists
+    if (!req.user || !req.user.id) {
+      console.error('❌ Invalid user object in attendance timeline');
+      return res.status(401).json({ 
+        success: false,
+        message: 'Invalid user authentication',
+        logs: [],
+        summary: getDefaultSummary(),
+        timeline: getDefaultTimeline(),
+        notifications: []
+      });
+    }
     
-    res.json(attendanceEvents);
+    // Get today's attendance logs for current user
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    // Get real attendance logs for the user with error handling
+    let userLogs = [];
+    try {
+      userLogs = await prisma.attendanceLog.findMany({
+        where: {
+          userId: req.user.id,
+          date: today
+        },
+        orderBy: {
+          timestamp: 'asc'
+        }
+      });
+    } catch (dbError) {
+      console.error('❌ Database error fetching attendance logs:', dbError.message);
+      // Continue with empty logs instead of crashing
+    }
+
+    // Convert database logs to expected format with validation
+    let logs = [];
+    try {
+      logs = userLogs.map(log => {
+        // Validate log structure
+        if (!log || !log.type || !log.timestamp) {
+          console.warn('⚠️ Invalid log entry found, skipping:', log);
+          return null;
+        }
+        
+        // Validate timestamp
+        const timestamp = new Date(log.timestamp);
+        if (isNaN(timestamp.getTime())) {
+          console.warn('⚠️ Invalid timestamp found, skipping:', log.timestamp);
+          return null;
+        }
+        
+        return {
+          type: log.type,
+          time: timestamp.toLocaleTimeString('en-US', { 
+            hour12: false, 
+            hour: '2-digit', 
+            minute: '2-digit' 
+          }).replace(' ', '')
+        };
+      }).filter(log => log !== null); // Remove null entries
+    } catch (conversionError) {
+      console.error('❌ Error converting logs:', conversionError.message);
+      logs = []; // Use empty array as fallback
+    }
+
+    // If no logs for today, create empty array
+    const logsToProcess = Array.isArray(logs) && logs.length > 0 ? logs : [];
+    
+    // Calculate enhanced attendance summary with error handling
+    let attendanceSummary = null;
+    try {
+      attendanceSummary = calculateAttendanceSummary(logsToProcess, today);
+      
+      // Validate summary structure
+      if (!attendanceSummary || !attendanceSummary.summary) {
+        console.warn('⚠️ Invalid attendance summary, using default');
+        attendanceSummary = { summary: getDefaultSummary() };
+      }
+    } catch (calculationError) {
+      console.error('❌ Error calculating attendance summary:', calculationError.message);
+      attendanceSummary = { summary: getDefaultSummary() };
+    }
+    
+    // Generate timeline data for visualization with error handling
+    let timelineData = null;
+    try {
+      timelineData = generateTimelineData(logsToProcess);
+      
+      // Validate timeline structure
+      if (!timelineData || !timelineData.segments) {
+        console.warn('⚠️ Invalid timeline data, using default');
+        timelineData = getDefaultTimeline();
+      }
+    } catch (timelineError) {
+      console.error('❌ Error generating timeline data:', timelineError.message);
+      timelineData = getDefaultTimeline();
+    }
+    
+    // Generate notifications if needed with error handling
+    let notifications = [];
+    try {
+      notifications = generateNotifications(attendanceSummary, req.user.name) || [];
+    } catch (notificationError) {
+      console.error('❌ Error generating notifications:', notificationError.message);
+      notifications = [];
+    }
+    
+    // Ensure all response data is valid
+    const response = {
+      success: true,
+      logs: Array.isArray(logsToProcess) ? logsToProcess : [],
+      summary: attendanceSummary && attendanceSummary.summary ? attendanceSummary.summary : getDefaultSummary(),
+      timeline: timelineData || getDefaultTimeline(),
+      notifications: Array.isArray(notifications) ? notifications : [],
+      businessRules: {
+        STANDARD_START_TIME: BUSINESS_RULES.STANDARD_START_TIME,
+        GRACE_PERIOD_MINUTES: BUSINESS_RULES.GRACE_PERIOD_MINUTES,
+        STANDARD_END_TIME: BUSINESS_RULES.STANDARD_END_TIME,
+        LATE_CHECKOUT_WARNING_TIME: BUSINESS_RULES.LATE_CHECKOUT_WARNING_TIME,
+        TIMELINE_SCALE: {
+          TOTAL_MINUTES: 585,
+          EXPECTED_WORKING_TIME: 525,
+          START_TIME: '09:00',
+          END_TIME: '18:45'
+        }
+      }
+    };
+    
+    console.log('✅ Attendance timeline response sent successfully');
+    res.json(response);
+    
+  } catch (error) {
+    console.error('❌ Critical error in attendance timeline:', error.message);
+    console.error('Stack trace:', error.stack);
+    
+    // Return safe fallback response instead of crashing
+    res.status(500).json({
+      success: false,
+      message: 'Unable to fetch attendance timeline',
+      logs: [],
+      summary: getDefaultSummary(),
+      timeline: getDefaultTimeline(),
+      notifications: [],
+      businessRules: {
+        STANDARD_START_TIME: '09:00',
+        GRACE_PERIOD_MINUTES: 5,
+        STANDARD_END_TIME: '18:45',
+        TIMELINE_SCALE: {
+          TOTAL_MINUTES: 585,
+          EXPECTED_WORKING_TIME: 525,
+          START_TIME: '09:00',
+          END_TIME: '18:45'
+        }
+      }
+    });
+  }
+});
+
+// Helper function for default summary
+function getDefaultSummary() {
+  return {
+    totalWorkMinutes: 0,
+    lunchDurationMinutes: 0,
+    status: 'Not Checked In',
+    overtimeMinutes: 0,
+    isLate: false,
+    canCheckIn: true,
+    canCheckOut: false,
+    netWorkingTime: 0,
+    expectedWorkingTime: 525
+  };
+}
+
+// Helper function for default timeline
+function getDefaultTimeline() {
+  return {
+    segments: [],
+    dayStart: '09:00',
+    dayEnd: '18:45',
+    currentTime: new Date().toLocaleTimeString('en-US', { 
+      hour12: false, 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    }).replace(' ', ''),
+    timelineScale: {
+      startMinutes: 540,
+      endMinutes: 1125,
+      totalMinutes: 585,
+      expectedWorkingTime: 525
+    }
+  };
+}
+
+// POST /api/attendance/checkin - Handle check-in with business rules
+router.post('/checkin', authenticate, async (req, res) => {
+  try {
+    console.log('Check-in attempt - User:', { id: req.user.id, name: req.user.name });
+    
+    const currentTime = new Date();
+    const timeStr = currentTime.toTimeString().slice(0, 5); // HH:MM format
+    
+    // Check late arrival
+    const lateCheckIn = detectLateCheckIn(timeStr);
+    
+    // In real implementation, save to database
+    const checkInRecord = {
+      userId: req.user.id,
+      type: 'IN',
+      time: timeStr,
+      timestamp: currentTime,
+      isLate: lateCheckIn.isLate,
+      lateByMinutes: lateCheckIn.lateByMinutes
+    };
+    
+    // Generate notifications for late arrival
+    let notifications = [];
+    if (lateCheckIn.isLate) {
+      notifications = [{
+        type: 'LATE_CHECK_IN',
+        message: `${req.user.name} checked in late at ${timeStr}.`,
+        timestamp: currentTime.toISOString(),
+        recipients: ['EMPLOYEE', 'HR_MANAGER'],
+        priority: 'MEDIUM'
+      }];
+    }
+    
+    res.json({
+      success: true,
+      checkIn: checkInRecord,
+      notifications: notifications,
+      message: lateCheckIn.isLate 
+        ? `Checked in at ${timeStr} (Late by ${lateCheckIn.lateByMinutes} minutes)`
+        : `Checked in at ${timeStr} (On time)`
+    });
   } catch (err) {
-    console.error('My attendance timeline error:', err);
+    console.error('Check-in error:', err);
     res.status(500).json({ message: err.message });
   }
 });
+
+// POST /api/attendance/checkout - Handle check-out
+router.post('/checkout', authenticate, async (req, res) => {
+  try {
+    console.log('Check-out attempt - User:', { id: req.user.id, name: req.user.name });
+    
+    const currentTime = new Date();
+    const timeStr = currentTime.toTimeString().slice(0, 5); // HH:MM format
+    
+    // In real implementation, save to database
+    const checkOutRecord = {
+      userId: req.user.id,
+      type: 'OUT',
+      time: timeStr,
+      timestamp: currentTime
+    };
+    
+    // Check for overtime
+    const standardEndMinutes = timeToMinutes(BUSINESS_RULES.STANDARD_END_TIME);
+    const currentMinutes = timeToMinutes(timeStr);
+    const isOvertime = currentMinutes > standardEndMinutes;
+    const overtimeMinutes = isOvertime ? currentMinutes - standardEndMinutes : 0;
+    
+    res.json({
+      success: true,
+      checkOut: checkOutRecord,
+      overtime: {
+        isOvertime,
+        overtimeMinutes,
+        overtimeTime: isOvertime ? minutesToTime(standardEndMinutes) : null
+      },
+      message: `Checked out at ${timeStr}${isOvertime ? ` (Overtime: ${overtimeMinutes} minutes)` : ''}`
+    });
+  } catch (err) {
+    console.error('Check-out error:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Helper functions for time conversion
+function timeToMinutes(timeStr) {
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+function minutesToTime(minutes) {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+}
 
 module.exports = router;

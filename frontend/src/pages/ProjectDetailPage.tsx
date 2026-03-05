@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Plus, Users, CheckSquare, Target, Activity, X, Edit2, Trash2 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
-import api from '../api/axios'
+import api from '../utils/api'
 import { format } from 'date-fns'
 import { canManageProjects, isSuperAdmin, isTeamLead } from '../utils/permissions'
 

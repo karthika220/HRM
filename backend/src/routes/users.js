@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const { prisma } = require('../prisma');
 const { authenticate, authorize } = require('../middleware/auth');
 const { isSuperAdmin } = require('../middleware/roles');
+const { logUserUpdated } = require('../utils/auditLogger');
 
 const router = express.Router();
 
@@ -367,6 +368,24 @@ router.put('/:id', authenticate, async (req, res) => {
       if (reportingManagerId !== undefined) data.reportingManagerId = reportingManagerId;
     }
 
+    // Get previous user data for audit logging
+    const previousUser = await prisma.user.findUnique({
+      where: { id: req.params.id },
+      select: { 
+        id: true, 
+        name: true, 
+        role: true, 
+        department: true, 
+        isActive: true,
+        employeeCode: true,
+        designation: true,
+        employmentType: true,
+        joinDate: true,
+        employmentStatus: true,
+        reportingManagerId: true
+      },
+    });
+
     const user = await prisma.user.update({
       where: { id: req.params.id },
       data,
@@ -386,6 +405,13 @@ router.put('/:id', authenticate, async (req, res) => {
         reportingManagerId: true
       },
     });
+
+    // Audit logging for user update (non-blocking)
+    logUserUpdated(req.user.id, req.params.id, data, previousUser).catch(error => {
+      console.error('Audit logging failed:', error);
+      // Don't fail the request if audit logging fails
+    });
+
     res.json(user);
   } catch (err) {
     res.status(500).json({ message: err.message });

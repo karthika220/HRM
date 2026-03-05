@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Clock, Plus, X, CheckCircle, XCircle, AlertTriangle } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { useTimerStore } from '../store/timerStore'
-import api from '../api/axios'
+import api from '../utils/api'
 import { format, startOfWeek, endOfWeek } from 'date-fns'
 import TimerButton from '../components/TimerButton'
 

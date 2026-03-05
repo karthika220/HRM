@@ -1,7 +1,8 @@
 const express = require('express');
-const { authenticate } = require('../middleware/auth');
-const { isSuperAdmin, isTeamLead } = require('../middleware/roles');
 const { prisma } = require('../prisma');
+const { authenticate } = require('../middleware/auth');
+const { logLeaveApproved } = require('../utils/auditLogger');
+const { isSuperAdmin, isTeamLead } = require('../middleware/roles');
 const router = express.Router();
 
 // Apply authentication middleware to all routes
@@ -268,6 +269,20 @@ router.patch('/leave/requests/:id/approve', async (req, res) => {
         }
       }
     });
+
+    // Audit logging for leave approval (non-blocking)
+    if (status === 'Approved') {
+      logLeaveApproved(approvedBy, id, {
+        employeeId: request.employeeId,
+        leaveType: request.leaveType,
+        startDate: request.startDate,
+        endDate: request.endDate,
+        daysRequested: request.totalDays,
+      }).catch(error => {
+        console.error('Audit logging failed:', error);
+        // Don't fail the request if audit logging fails
+      });
+    }
 
     res.json(request);
   } catch (error) {

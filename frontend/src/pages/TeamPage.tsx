@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Users, Briefcase } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
-import api from '../api/axios'
+import api from '../utils/api'
 import MemberCard from '../components/MemberCard'
 import TeamLeadExpansionPanel from '../components/TeamLeadExpansionPanel'
 

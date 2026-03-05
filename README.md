@@ -1,12 +1,49 @@
-# ProjectFlow — Company Project Management System
+# Workforce HRM & PMS
 
-A full-stack SaaS application built with React + Vite (frontend) and Node.js + Express + Prisma (backend).
-Designed with the Profitcast dark UI aesthetic.
+A comprehensive Human Resource Management and Project Management System built with modern web technologies. This full-stack SaaS application combines HR operations with project management capabilities to streamline business processes and enhance team collaboration.
+
+## 📋 Project Overview
+
+**Workforce HRM & PMS** is a complete workforce management solution that includes:
+- 🏢 **Human Resource Management** - Employee management, attendance, leave tracking
+- 📊 **Project Management** - Project tracking, task management, progress monitoring
+- 🐛 **Issue Tracking** - Bug reporting, feature requests, issue resolution
+- 📈 **Analytics & Reporting** - Comprehensive reports and business insights
+- 🤖 **Automation** - Automated task management and workflow optimization
+- 📅 **Calendar & Scheduling** - Event management and deadline tracking
 
 ## 🗂 Project Structure
 
 ```
-projectflow/
+workforce/
+├── 📁 frontend/                    # React + Vite + Tailwind
+│   ├── src/
+│   │   ├── pages/                  # All application pages
+│   │   ├── components/             # Reusable UI components
+│   │   ├── store/                  # Zustand state management
+│   │   ├── api/                    # Axios configuration
+│   │   ├── hooks/                  # Custom React hooks
+│   │   └── utils/                  # Utility functions
+│   └── public/                     # Static assets
+├── 📁 backend/                     # Express API
+│   ├── src/
+│   │   ├── routes/                 # API endpoints
+│   │   ├── middleware/             # Authentication & authorization
+│   │   └── controllers/           # Business logic
+│   ├── prisma/                     # Database schema & migrations
+│   └── scripts/                    # Utility scripts
+├── 📁 docs/                        # Documentation
+│   ├── PROJECT_SUMMARY.md          # Complete project overview
+│   ├── TECHNICAL_DOCUMENTATION.md  # Technical architecture
+│   ├── USER_MANUAL.md              # User guide
+│   └── DEPLOYMENT_GUIDE.md        # Deployment instructions
+└── 📄 README.md                    # This file
+```
+
+## 🗂 Project Structure
+
+```
+workforce/
   frontend/          # React + Vite + Tailwind
     src/
       pages/         # LoginPage, DashboardPage, ProjectsPage, ...
@@ -71,14 +108,41 @@ npm run dev
 # UI runs at http://localhost:5173
 ```
 
-## 🔑 Demo Accounts (after seeding)
+## 🔑 Demo Credentials
 
 | Email | Password | Role |
 |-------|----------|------|
-| admin@projectflow.io | password | Managing Director |
-| hr@projectflow.io | password | HR Manager |
-| lead@projectflow.io | password | Team Lead |
-| employee@projectflow.io | password | Employee |
+| admin@workforce.io | password | Managing Director |
+| sarah@projectflow.io | password | HR Manager |
+| mike@projectflow.io | password | Team Lead |
+| john@projectflow.io | password | Employee |
+
+## 📚 Documentation
+
+### 📖 [Project Summary](./PROJECT_SUMMARY.md)
+- Complete project overview and architecture
+- Feature descriptions and capabilities
+- Technology stack details
+- Demo data information
+
+### 🔧 [Technical Documentation](./TECHNICAL_DOCUMENTATION.md)
+- System architecture and design
+- Database schema and relationships
+- API documentation
+- Security implementation
+- Performance optimization
+
+### 👤 [User Manual](./USER_MANUAL.md)
+- Step-by-step user guide
+- Feature tutorials
+- Troubleshooting guide
+- Best practices
+
+### 🚀 [Deployment Guide](./DEPLOYMENT_GUIDE.md)
+- Production deployment instructions
+- Docker configuration
+- Cloud deployment options
+- Security and monitoring setup
 
 ## 🌐 API Endpoints
 

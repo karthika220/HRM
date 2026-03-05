@@ -1,8 +1,10 @@
 const express = require('express');
 const { prisma } = require('../prisma');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, authorize } = require('../middleware/auth');
 const { isSuperAdmin, isTeamLead } = require('../middleware/roles');
+const { logTaskCreated } = require('../utils/auditLogger');
 const { sendTaskNotificationEmail, sendDelayedTaskEmail } = require('../utils/emailService');
+const { manualEscalation, getEscalationStats } = require('../services/escalationService');
 
 const router = express.Router();
 
@@ -263,6 +265,17 @@ router.post('/', authenticate, async (req, res) => {
       },
     });
 
+    // Audit logging (non-blocking)
+    logTaskCreated(req.user.id, task.id, {
+      title: task.title,
+      projectId: task.projectId,
+      assigneeId: assigneeId || null,
+      priority: task.priority,
+    }).catch(error => {
+      console.error('Audit logging failed:', error);
+      // Don't fail the request if audit logging fails
+    });
+
     res.status(201).json(task);
   } catch (error) {
     console.error("TASK CREATE ERROR:", error);
@@ -437,6 +450,61 @@ router.delete('/:id/comments/:commentId', authenticate, async (req, res) => {
     res.json({ message: 'Comment deleted' });
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/tasks/:id/escalate - Manually escalate a task
+router.post('/:id/escalate', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Check if user has permission to escalate
+    if (!isSuperAdmin(req.user.role) && !isTeamLead(req.user.role)) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    // Perform manual escalation
+    const success = await manualEscalation(id);
+    
+    if (success) {
+      res.json({ 
+        message: 'Task escalated successfully',
+        taskId: id
+      });
+    } else {
+      res.status(400).json({ 
+        message: 'Task escalation failed. Task may not be eligible for escalation.' 
+      });
+    }
+  } catch (error) {
+    console.error('Error escalating task:', error);
+    res.status(500).json({ 
+      message: 'Failed to escalate task',
+      error: error.message 
+    });
+  }
+});
+
+// GET /api/tasks/escalation/stats - Get escalation statistics
+router.get('/escalation/stats', authenticate, async (req, res) => {
+  try {
+    // Check if user has permission to view stats
+    if (!isSuperAdmin(req.user.role) && !isTeamLead(req.user.role)) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const stats = await getEscalationStats();
+    
+    res.json({
+      message: 'Escalation statistics retrieved successfully',
+      ...stats
+    });
+  } catch (error) {
+    console.error('Error getting escalation stats:', error);
+    res.status(500).json({ 
+      message: 'Failed to get escalation statistics',
+      error: error.message 
+    });
   }
 });
 

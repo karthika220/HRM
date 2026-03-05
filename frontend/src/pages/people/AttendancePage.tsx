@@ -30,7 +30,9 @@ interface AttendanceStatus {
     totalWorkMinutes: number
     lunchDurationMinutes: number
     status: string
+    overtimeMinutes: number
   }
+  logs: AttendanceLog[]
   todayLogs: AttendanceLog[]
 }
 
@@ -134,9 +136,33 @@ export default function AttendancePage() {
 
   const fetchAttendanceStatus = async () => {
     try {
-      const response = await fetch(`/api/attendance/status/${currentEmployeeId}`)
+      const response = await fetch('/api/attendance/my-timeline')
       const data = await response.json()
-      setAttendanceStatus(data)
+      
+      if (response.ok) {
+        // Use enhanced backend calculations
+        setAttendanceStatus({
+          currentStatus: data.summary.status,
+          canCheckIn: data.summary.canCheckIn !== undefined ? data.summary.canCheckIn : data.summary.status !== 'Checked In',
+          canCheckOut: data.summary.canCheckOut !== undefined ? data.summary.canCheckOut : data.summary.status === 'Checked In',
+          isLate: data.summary.isLate || false,
+          summary: {
+            totalWorkMinutes: data.summary.totalWorkMinutes,
+            lunchDurationMinutes: data.summary.lunchDurationMinutes,
+            status: data.summary.status,
+            overtimeMinutes: data.summary.overtimeMinutes || 0
+          },
+          logs: data.logs || [],
+          todayLogs: data.logs || []
+        })
+        
+        // Show notifications if any
+        if (data.notifications && data.notifications.length > 0) {
+          data.notifications.forEach((notification: any) => {
+            console.log(`🔔 ${notification.type}: ${notification.message}`)
+          })
+        }
+      }
     } catch (error) {
       console.error('Error fetching attendance status:', error)
       
@@ -149,8 +175,10 @@ export default function AttendancePage() {
         summary: {
           totalWorkMinutes: 0,
           lunchDurationMinutes: 0,
-          status: 'Not Checked In'
+          status: 'Not Checked In',
+          overtimeMinutes: 0
         },
+        logs: [],
         todayLogs: []
       }
       setAttendanceStatus(mockStatus)
@@ -159,19 +187,46 @@ export default function AttendancePage() {
 
   const handleCheckIn = async () => {
     try {
+      console.log('🔐 Attempting check-in...')
       const response = await fetch('/api/attendance/checkin', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ employeeId: currentEmployeeId })
+        headers: { 'Content-Type': 'application/json' }
       })
       const data = await response.json()
       
-      if (data.success) {
+      if (response.ok && data.success) {
+        console.log('✅ Check-in successful:', data.message)
+        
+        // Show late notification if applicable
+        if (data.notifications && data.notifications.length > 0) {
+          data.notifications.forEach((notification: any) => {
+            console.log(`🔔 ${notification.type}: ${notification.message}`)
+            // You could also show these as toast notifications
+          })
+        }
+        
+        // Show check-in details
+        if (data.checkIn) {
+          console.log(`⏰ Check-in Time: ${data.checkIn.time}`)
+          console.log(`🚨 Is Late: ${data.checkIn.isLate ? 'Yes' : 'No'}`)
+          if (data.checkIn.isLate) {
+            console.log(`⏱️ Late by: ${data.checkIn.lateByMinutes} minutes`)
+          }
+        }
+        
+        // Refresh attendance status to update button states
+        console.log('🔄 Refreshing attendance status...')
         await fetchAttendanceStatus()
+        
+        // Also refresh attendance data if needed
         await fetchAttendanceData()
+        
+        console.log('✅ Check-in completed and status updated')
+      } else {
+        console.error('❌ Check-in failed:', data.message || 'Unknown error')
       }
     } catch (error) {
-      console.error('Error checking in:', error)
+      console.error('❌ Error checking in:', error)
     }
   }
 
@@ -179,12 +234,18 @@ export default function AttendancePage() {
     try {
       const response = await fetch('/api/attendance/checkout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ employeeId: currentEmployeeId })
+        headers: { 'Content-Type': 'application/json' }
       })
       const data = await response.json()
       
       if (data.success) {
+        console.log(data.message)
+        
+        // Show overtime information if applicable
+        if (data.overtime && data.overtime.isOvertime) {
+          console.log(`⏰ Overtime: ${data.overtime.overtimeMinutes} minutes`)
+        }
+        
         await fetchAttendanceStatus()
         await fetchAttendanceData()
       }
@@ -208,17 +269,216 @@ export default function AttendancePage() {
   }
 
   const getCurrentTimePosition = () => {
-    const startTime = 9 * 60 // 09:00 = 540 minutes
-    const workEnd = 18.75 * 60 // 18:45 = 1125 minutes
+    // Timeline scale: 9:00 AM to 6:45 PM = 585 minutes total
+    const timelineStartMinutes = 9 * 60 // 09:00 = 540 minutes
+    const timelineEndMinutes = 18.75 * 60 // 18:45 = 1125 minutes
+    const timelineTotalMinutes = timelineEndMinutes - timelineStartMinutes // 585 minutes
+    
     const currentTimeMinutes = currentTime.getHours() * 60 + currentTime.getMinutes()
     
-    const totalWorkMinutes = workEnd - startTime
-    const elapsedMinutes = currentTimeMinutes - startTime
+    // Calculate position within timeline scale
+    const elapsedMinutes = currentTimeMinutes - timelineStartMinutes
+    const clampedMinutes = Math.max(0, Math.min(elapsedMinutes, timelineTotalMinutes))
     
-    const clampedMinutes = Math.max(0, Math.min(elapsedMinutes, totalWorkMinutes))
-    const widthPercent = (clampedMinutes / totalWorkMinutes) * 100
+    // Position calculation: (minutes_from_9AM / 585) * 100
+    const widthPercent = (clampedMinutes / timelineTotalMinutes) * 100
     
     return `${widthPercent}%`
+  }
+
+  // Enhanced timeline segment calculation function
+  const calculateTimelineSegments = (logs: any[]) => {
+    const timelineStartMinutes = 9 * 60 // 09:00 = 540 minutes
+    const timelineEndMinutes = 18.75 * 60 // 18:45 = 1125 minutes
+    const timelineTotalMinutes = timelineEndMinutes - timelineStartMinutes // 585 minutes
+    const overtimeThresholdMinutes = 18.75 * 60 // 6:45 PM = 1125 minutes
+    
+    // Sort logs by time
+    const sortedLogs = logs.sort((a: any, b: any) => {
+      const timeA = timeToMinutes(a.time)
+      const timeB = timeToMinutes(b.time)
+      return timeA - timeB
+    })
+
+    const segments: any[] = []
+    let totalWorkingMinutes = 0
+    let totalBreakMinutes = 0
+    let overtimeMinutes = 0
+    let checkInTime = null
+    let lastCheckOutTime = null
+
+    // Process each log entry
+    for (const log of sortedLogs) {
+      const logTimeMinutes = timeToMinutes(log.time)
+      
+      if (log.type === 'IN') {
+        if (checkInTime === null) {
+          checkInTime = logTimeMinutes
+        } else if (lastCheckOutTime !== null) {
+          // Multiple check-ins (after checkout)
+          checkInTime = logTimeMinutes
+        }
+      } else if (log.type === 'OUT') {
+        if (checkInTime !== null) {
+          // Calculate work segment
+          const workSegment: any = {
+            type: 'work',
+            start: Math.max(0, (checkInTime - timelineStartMinutes) / timelineTotalMinutes * 100),
+            width: Math.min(100, (logTimeMinutes - checkInTime) / timelineTotalMinutes * 100),
+            startTime: minutesToTime(checkInTime),
+            endTime: minutesToTime(logTimeMinutes)
+          }
+          
+          // Check for overtime in this segment
+          if (logTimeMinutes > overtimeThresholdMinutes) {
+            const overtimeStart = Math.max(overtimeThresholdMinutes, checkInTime)
+            const overtimeEnd = logTimeMinutes
+            
+            // Split work segment at overtime threshold
+            if (checkInTime < overtimeThresholdMinutes) {
+              // Regular work portion
+              workSegment.width = (overtimeThresholdMinutes - checkInTime) / timelineTotalMinutes * 100
+              segments.push(workSegment)
+              
+              // Overtime portion
+              const overtimeSegment = {
+                type: 'overtime',
+                start: (overtimeThresholdMinutes - timelineStartMinutes) / timelineTotalMinutes * 100,
+                width: (overtimeEnd - overtimeThresholdMinutes) / timelineTotalMinutes * 100,
+                startTime: minutesToTime(overtimeThresholdMinutes),
+                endTime: minutesToTime(overtimeEnd),
+                duration: overtimeEnd - overtimeThresholdMinutes
+              }
+              segments.push(overtimeSegment)
+              overtimeMinutes += overtimeEnd - overtimeThresholdMinutes
+            } else {
+              // Entire segment is overtime
+              workSegment.type = 'overtime'
+              workSegment.duration = logTimeMinutes - checkInTime
+              segments.push(workSegment)
+              overtimeMinutes += logTimeMinutes - checkInTime
+            }
+            
+            totalWorkingMinutes += overtimeThresholdMinutes - Math.max(checkInTime, timelineStartMinutes)
+          } else {
+            // Regular work segment
+            segments.push(workSegment)
+            totalWorkingMinutes += logTimeMinutes - checkInTime
+          }
+          
+          checkInTime = null
+          lastCheckOutTime = logTimeMinutes
+        }
+      }
+    }
+
+    // Handle currently checked in (no checkout yet)
+    const currentTimeMinutes = getCurrentTimeMinutes()
+    if (checkInTime !== null) {
+      const currentWorkSegment: any = {
+        type: 'work',
+        start: Math.max(0, (checkInTime - timelineStartMinutes) / timelineTotalMinutes * 100),
+        width: Math.min(100, (currentTimeMinutes - checkInTime) / timelineTotalMinutes * 100),
+        startTime: minutesToTime(checkInTime),
+        endTime: minutesToTime(currentTimeMinutes),
+        isActive: true
+      }
+      
+      // Check for current overtime
+      if (currentTimeMinutes > overtimeThresholdMinutes) {
+        const overtimeStart = Math.max(overtimeThresholdMinutes, checkInTime)
+        const currentOvertimeEnd = currentTimeMinutes
+        
+        // Split work segment at overtime threshold
+        if (checkInTime < overtimeThresholdMinutes) {
+          // Regular work portion
+          currentWorkSegment.width = (overtimeThresholdMinutes - checkInTime) / timelineTotalMinutes * 100
+          segments.push(currentWorkSegment)
+          
+          // Overtime portion
+          const currentOvertimeSegment = {
+            type: 'overtime',
+            start: (overtimeThresholdMinutes - timelineStartMinutes) / timelineTotalMinutes * 100,
+            width: (currentOvertimeEnd - overtimeThresholdMinutes) / timelineTotalMinutes * 100,
+            startTime: minutesToTime(overtimeThresholdMinutes),
+            endTime: minutesToTime(currentOvertimeEnd),
+            duration: currentOvertimeEnd - overtimeThresholdMinutes,
+            isActive: true
+          }
+          segments.push(currentOvertimeSegment)
+          overtimeMinutes += currentOvertimeEnd - overtimeThresholdMinutes
+        } else {
+          // Entire segment is overtime
+          currentWorkSegment.type = 'overtime'
+          currentWorkSegment.duration = currentTimeMinutes - checkInTime
+          segments.push(currentWorkSegment)
+          overtimeMinutes += currentTimeMinutes - checkInTime
+        }
+        
+        totalWorkingMinutes += overtimeThresholdMinutes - Math.max(checkInTime, timelineStartMinutes)
+      } else {
+        // Regular work segment
+        segments.push(currentWorkSegment)
+        totalWorkingMinutes += currentTimeMinutes - checkInTime
+      }
+    }
+
+    // Calculate break segments (time between check-out and next check-in)
+    const workSegments = segments.filter(s => s.type === 'work')
+    for (let i = 0; i < workSegments.length - 1; i++) {
+      const currentSegment = workSegments[i]
+      const nextSegment = workSegments[i + 1]
+      
+      if (currentSegment.endTime && nextSegment.startTime) {
+        const breakStart = timeToMinutes(currentSegment.endTime)
+        const breakEnd = timeToMinutes(nextSegment.startTime)
+        
+        if (breakEnd > breakStart && breakStart >= timelineStartMinutes && breakEnd <= timelineEndMinutes) {
+          const breakDuration = breakEnd - breakStart
+          const breakSegment = {
+            type: 'break',
+            start: (breakStart - timelineStartMinutes) / timelineTotalMinutes * 100,
+            width: breakDuration / timelineTotalMinutes * 100,
+            startTime: minutesToTime(breakStart),
+            endTime: minutesToTime(breakEnd),
+            duration: breakDuration
+          }
+          segments.push(breakSegment)
+          totalBreakMinutes += breakDuration
+        }
+      }
+    }
+
+    // Sort segments by start position
+    segments.sort((a, b) => a.start - b.start)
+
+    return {
+      segments,
+      calculations: {
+        totalWorkingMinutes,
+        totalBreakMinutes,
+        netWorkingTime: totalWorkingMinutes - totalBreakMinutes,
+        overtimeMinutes,
+        expectedWorkingTime: 525 // 8 hours 45 minutes standard
+      }
+    }
+  }
+
+  // Helper functions for time conversion
+  const timeToMinutes = (timeStr: string) => {
+    const [hours, minutes] = timeStr.split(':').map(Number)
+    return hours * 60 + minutes
+  }
+
+  const minutesToTime = (minutes: number) => {
+    const hours = Math.floor(minutes / 60)
+    const mins = minutes % 60
+    return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`
+  }
+
+  const getCurrentTimeMinutes = () => {
+    const now = new Date()
+    return now.getHours() * 60 + now.getMinutes()
   }
 
   const getStatusColor = (status: string) => {
@@ -303,15 +563,15 @@ export default function AttendancePage() {
               </div>
             </div>
             <div className="bg-[#18181B] rounded-lg p-4">
-              <div className="text-sm text-zinc-400 mb-1">Status</div>
-              <div className={`text-xl font-bold ${getStatusColor(attendanceStatus.summary.status)}`}>
-                {attendanceStatus.summary.status}
+              <div className="text-sm text-zinc-400 mb-1">Overtime</div>
+              <div className={`text-xl font-bold ${attendanceStatus.summary.overtimeMinutes > 0 ? 'text-purple-400' : 'text-zinc-400'}`}>
+                {formatMinutes(attendanceStatus.summary.overtimeMinutes)}
               </div>
             </div>
             <div className="bg-[#18181B] rounded-lg p-4">
-              <div className="text-sm text-zinc-400 mb-1">Today's Logs</div>
-              <div className="text-xl font-bold text-white">
-                {attendanceStatus.todayLogs.length}
+              <div className="text-sm text-zinc-400 mb-1">Status</div>
+              <div className={`text-xl font-bold ${getStatusColor(attendanceStatus.summary.status)}`}>
+                {attendanceStatus.summary.status}
               </div>
             </div>
           </div>
@@ -362,22 +622,32 @@ export default function AttendancePage() {
         {/* Timeline Bar */}
         <div className="relative mb-6">
           <div className="h-4 bg-zinc-800 rounded-full overflow-hidden flex">
-            {/* Working (9:00-1:30) */}
-            <div className="bg-blue-500 flex items-center justify-center" style={{ width: '37.5%' }}>
-              <span className="text-xs text-white font-medium">Working</span>
-            </div>
-            {/* Break (1:30-2:30) */}
-            <div className="bg-yellow-500 flex items-center justify-center" style={{ width: '6.25%' }}>
-              <span className="text-xs text-black font-medium">Break</span>
-            </div>
-            {/* Working (2:30-6:45) */}
-            <div className="bg-blue-500 flex items-center justify-center" style={{ width: '43.75%' }}>
-              <span className="text-xs text-white font-medium">Working</span>
-            </div>
-            {/* Overtime (6:45+) */}
-            <div className="bg-red-500 flex items-center justify-center" style={{ width: '12.5%' }}>
-              <span className="text-xs text-white font-medium">Overtime</span>
-            </div>
+            {/* Dynamic segments based on actual logs */}
+            {attendanceStatus?.logs && attendanceStatus.logs.length > 0 ? (
+              calculateTimelineSegments(attendanceStatus.logs).segments.map((segment, index) => (
+                <div
+                  key={index}
+                  className={`${
+                    segment.type === 'work' ? 'bg-blue-500' : 
+                    segment.type === 'break' ? 'bg-yellow-500' : 
+                    segment.type === 'overtime' ? 'bg-red-500' : 'bg-zinc-500'
+                  } ${segment.isActive ? 'animate-pulse' : ''}`}
+                  style={{ 
+                    width: `${segment.width}%`,
+                    marginLeft: index === 0 ? `${segment.start}%` : '0'
+                  }}
+                  title={`${segment.type === 'work' ? 'Working' : segment.type === 'break' ? 'Break' : 'Overtime'}: ${segment.startTime} - ${segment.endTime}${segment.duration ? ` (${segment.duration}m)` : ''}`}
+                />
+              ))
+            ) : (
+              // Fallback static segments when no logs
+              <>
+                <div className="bg-blue-500" style={{ width: '37.5%' }}></div>
+                <div className="bg-yellow-500" style={{ width: '6.25%' }}></div>
+                <div className="bg-blue-500" style={{ width: '43.75%' }}></div>
+                <div className="bg-red-500" style={{ width: '12.5%' }}></div>
+              </>
+            )}
           </div>
           
           {/* Current Time Position Indicator */}
@@ -387,14 +657,6 @@ export default function AttendancePage() {
           >
             <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-[#00FFAA] rounded-full animate-pulse"></div>
           </div>
-        </div>
-
-        {/* Time Markers */}
-        <div className="flex justify-between text-xs text-zinc-400 mb-6">
-          <span>9:00 AM</span>
-          <span>1:30 PM</span>
-          <span>2:30 PM</span>
-          <span>6:45 PM</span>
         </div>
 
         {/* Legend */}
@@ -505,7 +767,7 @@ export default function AttendancePage() {
           <div className={`ml-auto w-96 h-full bg-[#09090B] border-l border-zinc-800 transform transition-transform duration-300 ${
             showDrawer ? 'translate-x-0' : 'translate-x-full'
           }`}>
-            <div className="h-full flex flex flex-col">
+            <div className="h-full flex flex-col">
               {/* Drawer Header */}
               <div className="p-6 border-b border-zinc-800">
                 <div className="flex items-center justify-between">

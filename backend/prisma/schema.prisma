@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = "postgresql://postgres.ulapsnjzjtmzdysmello:Profitcast%402026@aws-1-ap-south-1.pooler.supabase.com:5432/postgres"
+  url      = env("DATABASE_URL")
 }
 
 
@@ -47,6 +47,9 @@ model User {
   issueComments    IssueComment[]
   calendarEvents   CalendarEvent[]
   automationRules  AutomationRule[]  @relation("AutomationCreator")
+  refreshTokens    RefreshToken[]
+  auditLogs        AuditLog[]
+  escalatedTasks   Task[]            @relation("TaskEscalatedTo")
   
   // Self-referencing relationships for hierarchy
   manager          User?             @relation("UserHierarchy", fields: [managerId], references: [id])
@@ -62,6 +65,29 @@ model User {
   approvedLeaveRequests LeaveRequest[]   @relation("ApprovedLeaveRequests")
   employeeEscalations Escalation[]      @relation("EmployeeEscalations")
   raisedEscalations   Escalation[]      @relation("RaisedEscalations")
+  taskTimeLogs        TaskTimeLog[]
+}
+
+model RefreshToken {
+  id          String   @id @default(uuid())
+  userId      String
+  token       String   @unique
+  expiryDate  DateTime
+  createdAt   DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  action     String
+  entityType String
+  entityId   String?
+  timestamp  DateTime @default(now())
+  metadata   Json?    // Additional context data
+  
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 }
 
 model NotificationPreferences {
@@ -147,12 +173,29 @@ model Task {
   service     String?
   isAutomated Boolean      @default(false)
   delayNotified Boolean  @default(false)
+  escalationLevel Int      @default(0)
+  escalatedToUserId String?
+  escalatedToUser User? @relation("TaskEscalatedTo", fields: [escalatedToUserId], references: [id])
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
   comments    Comment[]
   timesheets  Timesheet[]
   calendarEvents CalendarEvent[] @relation("CalendarEventTask")
+  timeLogs    TaskTimeLog[]
+}
+
+model TaskTimeLog {
+  id        String   @id @default(uuid())
+  taskId    String
+  userId    String
+  startTime DateTime
+  endTime   DateTime?
+  duration  Int?      // store in minutes
+  createdAt DateTime  @default(now())
+
+  task      Task     @relation(fields: [taskId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
 }
 
 model Comment {
@@ -356,4 +399,18 @@ model Escalation {
 
   employee User @relation("EmployeeEscalations", fields: [employeeId], references: [id], onDelete: Cascade)
   raiser   User @relation("RaisedEscalations", fields: [raisedBy], references: [id])
+}
+
+// Task Time Tracking
+model TaskTimeLog {
+  id        String   @id @default(uuid())
+  taskId    String
+  userId    String
+  startTime DateTime
+  endTime   DateTime?
+  duration  Int?     // store in minutes
+  createdAt DateTime @default(now())
+
+  task      Task     @relation(fields: [taskId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
 }

@@ -1,13 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 
-const prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: 'postgresql://postgres.fIUHOiqkQSzl_6k_KH2n3g_2kbFWCgB@aws-0-us-east-1.pooler.supabase.com:6543/postgres'
-    }
-  }
-});
+const prisma = new PrismaClient();
 
 async function main() {
   console.log('Seeding database...');
@@ -16,10 +10,10 @@ async function main() {
   const hashedPassword = await bcrypt.hash('password', 10);
 
   const admin = await prisma.user.upsert({
-    where: { email: 'admin@projectflow.io' },
+    where: { email: 'admin@workforce.io' },
     update: {},
     create: {
-      email: 'admin@projectflow.io',
+      email: 'admin@workforce.io',
       password: hashedPassword,
       name: 'Admin Director',
       role: 'MANAGING_DIRECTOR',
@@ -28,10 +22,10 @@ async function main() {
   });
 
   const hrManager = await prisma.user.upsert({
-    where: { email: 'hr@projectflow.io' },
+    where: { email: 'hr@workforce.io' },
     update: {},
     create: {
-      email: 'hr@projectflow.io',
+      email: 'hr@workforce.io',
       password: hashedPassword,
       name: 'Sarah HR',
       role: 'HR_MANAGER',
@@ -40,10 +34,10 @@ async function main() {
   });
 
   const teamLead = await prisma.user.upsert({
-    where: { email: 'lead@projectflow.io' },
+    where: { email: 'lead@workforce.io' },
     update: {},
     create: {
-      email: 'lead@projectflow.io',
+      email: 'lead@workforce.io',
       password: hashedPassword,
       name: 'Mike Lead',
       role: 'TEAM_LEAD',
@@ -52,10 +46,10 @@ async function main() {
   });
 
   const employee = await prisma.user.upsert({
-    where: { email: 'employee@projectflow.io' },
+    where: { email: 'employee@workforce.io' },
     update: {},
     create: {
-      email: 'employee@projectflow.io',
+      email: 'employee@workforce.io',
       password: hashedPassword,
       name: 'Jane Employee',
       role: 'EMPLOYEE',
@@ -65,10 +59,10 @@ async function main() {
 
   // Create additional Managers
   const manager1 = await prisma.user.upsert({
-    where: { email: 'manager1@projectflow.io' },
+    where: { email: 'manager1@workforce.io' },
     update: {},
     create: {
-      email: 'manager1@projectflow.io',
+      email: 'manager1@workforce.io',
       password: hashedPassword,
       name: 'John Manager',
       role: 'MANAGER',
@@ -77,10 +71,10 @@ async function main() {
   });
 
   const manager2 = await prisma.user.upsert({
-    where: { email: 'manager2@projectflow.io' },
+    where: { email: 'manager2@workforce.io' },
     update: {},
     create: {
-      email: 'manager2@projectflow.io',
+      email: 'manager2@workforce.io',
       password: hashedPassword,
       name: 'Lisa Manager',
       role: 'MANAGER',
@@ -90,10 +84,10 @@ async function main() {
 
   // Create additional Team Leads
   const teamLead2 = await prisma.user.upsert({
-    where: { email: 'teamlead2@projectflow.io' },
+    where: { email: 'teamlead2@workforce.io' },
     update: {},
     create: {
-      email: 'teamlead2@projectflow.io',
+      email: 'teamlead2@workforce.io',
       password: hashedPassword,
       name: 'Tom Lead',
       role: 'TEAM_LEAD',
@@ -102,10 +96,10 @@ async function main() {
   });
 
   const teamLead3 = await prisma.user.upsert({
-    where: { email: 'teamlead3@projectflow.io' },
+    where: { email: 'teamlead3@workforce.io' },
     update: {},
     create: {
-      email: 'teamlead3@projectflow.io',
+      email: 'teamlead3@workforce.io',
       password: hashedPassword,
       name: 'Anna Lead',
       role: 'TEAM_LEAD',
@@ -115,14 +109,14 @@ async function main() {
 
   // Create more Employees
   const employees = [
-    { email: 'emp1@projectflow.io', name: 'Robert Employee', department: 'Engineering' },
-    { email: 'emp2@projectflow.io', name: 'Maria Employee', department: 'Engineering' },
-    { email: 'emp3@projectflow.io', name: 'David Employee', department: 'Sales' },
-    { email: 'emp4@projectflow.io', name: 'Emma Employee', department: 'Marketing' },
-    { email: 'emp5@projectflow.io', name: 'James Employee', department: 'Design' },
-    { email: 'emp6@projectflow.io', name: 'Sophia Employee', department: 'Quality Assurance' },
-    { email: 'emp7@projectflow.io', name: 'Oliver Employee', department: 'Engineering' },
-    { email: 'emp8@projectflow.io', name: 'Isabella Employee', department: 'Sales' },
+    { email: 'emp1@workforce.io', name: 'Robert Employee', department: 'Engineering' },
+    { email: 'emp2@workforce.io', name: 'Maria Employee', department: 'Engineering' },
+    { email: 'emp3@workforce.io', name: 'David Employee', department: 'Sales' },
+    { email: 'emp4@workforce.io', name: 'Emma Employee', department: 'Marketing' },
+    { email: 'emp5@workforce.io', name: 'James Employee', department: 'Design' },
+    { email: 'emp6@workforce.io', name: 'Sophia Employee', department: 'Quality Assurance' },
+    { email: 'emp7@workforce.io', name: 'Oliver Employee', department: 'Engineering' },
+    { email: 'emp8@workforce.io', name: 'Isabella Employee', department: 'Sales' },
   ];
 
   for (const emp of employees) {
@@ -309,7 +303,7 @@ async function main() {
   // Create notification
   await prisma.notification.create({
     data: {
-      title: 'Welcome to ProjectFlow!',
+      title: 'Welcome to Workforce!',
       message: 'Your account has been set up. Start exploring projects.',
       type: 'INFO',
       userId: admin.id,
@@ -318,22 +312,22 @@ async function main() {
 
   console.log('Seed completed!');
   console.log('Accounts:');
-  console.log('  admin@projectflow.io / password (Managing Director)');
-  console.log('  hr@projectflow.io / password (HR Manager)');
-  console.log('  manager1@projectflow.io / password (Manager - Sales)');
-  console.log('  manager2@projectflow.io / password (Manager - Marketing)');
-  console.log('  lead@projectflow.io / password (Team Lead - Engineering)');
-  console.log('  teamlead2@projectflow.io / password (Team Lead - Design)');
-  console.log('  teamlead3@projectflow.io / password (Team Lead - QA)');
-  console.log('  employee@projectflow.io / password (Employee - Engineering)');
-  console.log('  emp1@projectflow.io / password (Employee - Engineering)');
-  console.log('  emp2@projectflow.io / password (Employee - Engineering)');
-  console.log('  emp3@projectflow.io / password (Employee - Sales)');
-  console.log('  emp4@projectflow.io / password (Employee - Marketing)');
-  console.log('  emp5@projectflow.io / password (Employee - Design)');
-  console.log('  emp6@projectflow.io / password (Employee - QA)');
-  console.log('  emp7@projectflow.io / password (Employee - Engineering)');
-  console.log('  emp8@projectflow.io / password (Employee - Sales)');
+  console.log('  admin@workforce.io / password (Managing Director)');
+  console.log('  hr@workforce.io / password (HR Manager)');
+  console.log('  manager1@workforce.io / password (Manager - Sales)');
+  console.log('  manager2@workforce.io / password (Manager - Marketing)');
+  console.log('  lead@workforce.io / password (Team Lead - Engineering)');
+  console.log('  teamlead2@workforce.io / password (Team Lead - Design)');
+  console.log('  teamlead3@workforce.io / password (Team Lead - QA)');
+  console.log('  employee@workforce.io / password (Employee - Engineering)');
+  console.log('  emp1@workforce.io / password (Employee - Engineering)');
+  console.log('  emp2@workforce.io / password (Employee - Engineering)');
+  console.log('  emp3@workforce.io / password (Employee - Sales)');
+  console.log('  emp4@workforce.io / password (Employee - Marketing)');
+  console.log('  emp5@workforce.io / password (Employee - Design)');
+  console.log('  emp6@workforce.io / password (Employee - QA)');
+  console.log('  emp7@workforce.io / password (Employee - Engineering)');
+  console.log('  emp8@workforce.io / password (Employee - Sales)');
 }
 
 main()

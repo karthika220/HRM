@@ -90,3 +90,45 @@ button:active:not(:disabled) {
 .animate-slide-in { animation: slideIn 0.3s ease-out; }
 .animate-fade-in { animation: fadeIn 0.3s ease-out; }
 .animate-slide-up { animation: slideUp 0.4s ease-out; }
+
+/* Date picker calendar icon styling for dark mode */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+  border-radius: 4px;
+  margin-right: 8px;
+  opacity: 0.8;
+  transition: opacity 0.2s ease;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+/* Firefox date picker styling */
+input[type="date"]::-moz-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+  border-radius: 4px;
+  margin-right: 8px;
+  opacity: 0.8;
+  transition: opacity 0.2s ease;
+}
+
+input[type="date"]::-moz-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+/* Edge/IE date picker styling */
+input[type="date"]::-ms-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+  border-radius: 4px;
+  margin-right: 8px;
+  opacity: 0.8;
+  transition: opacity 0.2s ease;
+}
+
+input[type="date"]::-ms-calendar-picker-indicator:hover {
+  opacity: 1;
+}

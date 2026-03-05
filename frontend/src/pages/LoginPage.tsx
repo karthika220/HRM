@@ -6,7 +6,7 @@ import { Eye, EyeOff, LogIn, AlertCircle } from 'lucide-react'
 export default function LoginPage() {
   const { login, token } = useAuthStore()
   const navigate = useNavigate()
-  const [email, setEmail] = useState('admin@projectflow.io')
+  const [email, setEmail] = useState('admin@workforce.io')
   const [password, setPassword] = useState('password')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -15,6 +15,27 @@ export default function LoginPage() {
   useEffect(() => {
     if (token) navigate('/dashboard')
   }, [token])
+
+  // Debug: Clear any existing invalid token on mount
+  useEffect(() => {
+    const currentToken = localStorage.getItem('token')
+    if (currentToken) {
+      console.log('🔍 Found existing token, checking validity...')
+      try {
+        // Basic JWT format check
+        const parts = currentToken.split('.')
+        if (parts.length !== 3) {
+          console.log('❌ Invalid token format, clearing...')
+          localStorage.removeItem('token')
+          localStorage.removeItem('user')
+        }
+      } catch (error) {
+        console.log('❌ Token validation error, clearing...')
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+      }
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -29,15 +50,22 @@ export default function LoginPage() {
     
     setError('')
     setLoading(true)
+    
     try {
+      console.log('🌐 Calling login function...')
       await login(email, password)
+      console.log('✅ Login successful, navigating to dashboard...')
       navigate('/dashboard')
     } catch (err: any) {
-      console.error('Login error:', err)
+      console.error('❌ Login error:', err)
       let errorMessage = 'Login failed. Please try again.'
       
-      if (err.response?.status === 401) {
-        errorMessage = 'Invalid credentials. Please check your email and password.'
+      if (err.code === 'ECONNREFUSED' || err.code === 'ERR_NETWORK') {
+        errorMessage = 'Unable to connect to server. Please check your internet connection and ensure the backend is running.'
+      } else if (err.response?.status === 0) {
+        errorMessage = 'Network error. Please check if the backend server is running on localhost:3001.'
+      } else if (err.response?.status === 401) {
+        errorMessage = 'Invalid email or password. Please check your credentials.'
       } else if (err.response?.status === 400) {
         errorMessage = err.response.data?.message || 'Invalid request. Please check your input.'
       } else if (err.response?.data?.message) {
@@ -73,11 +101,11 @@ export default function LoginPage() {
         <div className="bg-[#09090B]/95 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-2xl shadow-black/50 p-8">
           {/* Logo */}
           <div className="flex flex-col items-center mb-8">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-teal to-brand-mint flex items-center justify-center mb-4 shadow-[0_0_30px_rgba(0,161,199,0.4)]">
-              <span className="text-black font-rubik font-bold text-2xl">PF</span>
-            </div>
-            <h1 className="font-rubik font-bold text-2xl text-white">ProjectFlow</h1>
-            <p className="text-zinc-400 text-sm mt-1">Project Management System</p>
+            <img 
+              src="/logo.png" 
+              alt="Workforce Logo"
+              className="h-16 w-auto mx-auto mb-6 object-contain"
+            />
           </div>
 
           {/* Error */}
@@ -152,6 +180,24 @@ export default function LoginPage() {
                 hover:bg-white/5 transition-all duration-200"
             >
               Sign Up
+            </button>
+          </div>
+
+          {/* Demo Credentials Hint */}
+          <div className="mt-4 text-center">
+            <p className="text-zinc-500 text-xs">
+              Demo Credentials: admin@workforce.io / password
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                localStorage.removeItem('token')
+                localStorage.removeItem('user')
+                window.location.reload()
+              }}
+              className="mt-2 text-xs text-zinc-400 hover:text-zinc-300 underline"
+            >
+              Clear Session & Reload
             </button>
           </div>
 
