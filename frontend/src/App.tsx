@@ -26,8 +26,6 @@ import PeopleDashboardPage from './pages/people/PeopleDashboardPage'
 import EmployeesPage from './pages/people/EmployeesPage'
 import AttendancePage from './pages/people/AttendancePage'
 import LeaveManagementPage from './pages/people/LeaveManagementPage'
-// Error test component
-import ErrorTest from './components/ErrorTest'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { token } = useAuthStore()
@@ -44,7 +42,6 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignUpPage />} />
-        <Route path="/error-test" element={<ErrorTest />} />
         <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
