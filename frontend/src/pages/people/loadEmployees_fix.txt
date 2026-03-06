@@ -1,8 +1,0 @@
-} catch (error) {
-    console.error('Failed to load employees:', error)
-    // Fallback to empty array if API fails
-    setEmployees([])
-  } finally {
-      setEmployeesLoading(false)
-    }
-  }
